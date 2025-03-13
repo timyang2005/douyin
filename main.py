@@ -1,21 +1,33 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api.all import *
+import requests
+import re
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
+@register("douyin_video", "Your Name", "解析抖音视频链接并发送视频及信息", "1.0.0")
+class DouyinVideoPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-    
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        '''这是一个 hello world 指令''' # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
 
-    async def terminate(self):
-        '''可选择实现 terminate 函数，当插件被卸载/停用时会调用。'''
+    @event_message_type(EventMessageType.ALL)
+    async def on_message(self, event: AstrMessageEvent):
+        message_str = event.message_str
+        # 检测消息中是否包含抖音视频链接
+        if "https://v.douyin.com/" in message_str:
+            # 提取抖音视频链接
+            douyin_url = re.search(r"https://v\.douyin\.com/\S+", message_str).group()
+            # 调用 API 解析抖音视频
+            api_url = f"https://api.xinyew.cn/api/douyinjx?url={douyin_url}"
+            response = requests.get(api_url)
+            if response.status_code == 200:
+                data = response.json()
+                if data["code"] == 200:
+                    video_url = data["data"]["video_url"]
+                    desc = data["data"]["additional_data"][0]["desc"]
+                    nickname = data["data"]["additional_data"][0]["nickname"]
+                    # 发送视频文件
+                    yield event.file_video(video_url)
+                    # 发送视频描述和作者昵称
+                    yield event.plain_result(f"视频描述：{desc}\n作者昵称：{nickname}")
+                else:
+                    yield event.plain_result("解析抖音视频失败")
+            else:
+                yield event.plain_result("解析抖音视频失败")
