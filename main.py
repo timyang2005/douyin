@@ -24,7 +24,13 @@ class DouyinVideoPlugin(Star):
                     desc = data["data"]["additional_data"][0]["desc"]
                     nickname = data["data"]["additional_data"][0]["nickname"]
                     # 发送视频文件
-                    yield event.file_video(video_url)
+                    # 根据平台适配器发送视频
+                    if event.get_platform_name() == "aiocqhttp":
+                        from astrbot.api.message_components import Video
+                        yield event.chain_result([Video.fromURL(video_url)])
+                    else:
+                        # 对于其他平台，可以尝试发送视频链接
+                        yield event.plain_result(f"视频链接：{video_url}")
                     # 发送视频描述和作者昵称
                     yield event.plain_result(f"视频描述：{desc}\n作者昵称：{nickname}")
                 else:
